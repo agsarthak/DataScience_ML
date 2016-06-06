@@ -13,20 +13,19 @@ output:
 
 A microfinance institution is an organization that is a source of financial services for small businesses lacking access to traditional banking systems. Kiva (www.kiva.org) is a microlending website that works with such microfinance institutions to raise funds for low income entrepreneurs and provide loans for their business. Through this platform, anyone with an internet connection can make an interest free loan.
 
-Kiva has field partners which are mainly microfinance institutions but also schools, NGOs, social enterprises. These field partners work at the local level and disburse loans to the borrowers. Loans are pre-disbursed which means that the loan is given out before being funded on the Kiva website. The field partners then collect stories, photos, and videos from the borrower and post them on Kiva which are published on the website after review. Anyone who can access the Kiva website can browse through the borrower's profile to make a loan for at least 25$. Kiva aggregates all the money and backfills the loan already disbursed by the field partner. Field partners then collect repayments from borrowers. Some microfinance institutions may charge an interest rate but around 60% of the partners are non-profits. The amount is then repaid to the Kiva lender.
+Kiva has field partners which are mainly microfinance institutions but also schools, NGOs and social enterprises. These field partners work at the local level and disburse loans to the borrowers. Loans are pre-disbursed which means that the loan is given out before being funded on the Kiva website. The field partners then collect stories, photos, and videos from the borrower and post them on Kiva which are published on the website after review. Anyone who can access the Kiva website can browse through the borrower's profile to make a loan for at least 25$. Kiva aggregates all the money and backfills the loan already disbursed by the field partner. Field partners then collect repayments from the borrowers. Some microfinance institutions may charge an interest rate but around 60% of the partners are non-profits. The amount is then repaid to the Kiva lender.
 
 Every year World Bank releases a collection of World Development Indicators (WDI). The data represents the economic, demographic, social, environmental, educational and cultural indicators. It contains over 800 indicators covering more than 150 countries representing the most current and accurate global development data available which includes national, regional and global estimates.
 
 
 ## Analysis Goals
 
-Kiva complete business model is based around lending and borrowing loans. Kiva's main focus is to be a medium between the loan borrowers and lenders. Hence lenders are very important for Kiva and eventually to loan borrowers. Our objective of this analysis is to help Kiva and loan lenders to make better decisions that would help in the economic development of the countries and help alleviate poverty. In this report we analyze the loan amount, and its relationship with other variables such as sectors, genders and countries. We also analyze the loan amount funded and the repayment trends of these loans. 
+Kiva's complete business model is based around lending and borrowing loans. The main focus is to be a medium between the loan borrowers and lenders. Hence lenders are very important for Kiva and eventually to loan borrowers. The key objective of this analysis is to help Kiva and loan lenders to make better decisions thereby helping in the economic development of the countries and aiding poverty alleviation. In this report we analyze the loan amounts, and their relationship with other variables such as sectors, genders and countries. We also analyze the loan amount fundings and the repayment trends for these loans. 
 
-We further analyze the loans funded across countries with the GDP of those countries and provide information about the countries which needs more attention than others.
-[Make better sentences]
+We further analyze the loans funded across countries with their GDP and provide information about the countries that need immediate attention.
 
 # 2. Data Profile
-In the following two sub sections we understand the data and it's structure. We further identify the relevant variables within the Kiva dataset that are important for our analysis. 
+In the following two sub sections we understand the data and its structure. We further identify the relevant variables within the Kiva dataset that are important for our analysis. 
 
 ## 2.1 Dataset description
 The Kiva dataset consists of information on lenders and loans. We work primarily with the loans dataset and reference the lenders dataset where necessary. The data is available at www.build.kiva.org website and has three sub directories - `lenders`, `loans` and `loans_lenders`.
@@ -87,7 +86,7 @@ For our analysis, we choose the following variables and create few additional va
 | `paid_date_cleaned` | Date       | paid_date converted to YYYY-MM-DD format      |
 | `day_diff`          | Numeric    | Difference between funded date and paid date  |
 | `activity`          | Character  | Reason for which loan is taken                |
-| `lender_count` [to be removed]| Number| Number of people who lended money        |
+| `lender_count` [to be removed]| Number| Number of lenders                        |
 
 Units of these variables are:
 
@@ -167,7 +166,7 @@ clusterExport(cl,
                 'list.select','bind_rows','fromJSON',
                 'readJSONFileIntoDataFrame'))
 ```
-We use parallel version of Lapply to apply `readJSONFileIntoDataFrame` function on JSON files. Then stop cluster when finished.
+We use parallel version of Lapply to apply `readJSONFileIntoDataFrame` function on JSON files, then stop cluster when finished.
 ```{r warning=FALSE}
 create.loan.df.cl = function(cl, loan.file.in) {
   loan.file.in %>%
@@ -179,9 +178,9 @@ stopCluster(cl)
 ```
 
 ## 3.3 Loading the WDI dataset into dataframe
-We choose the following Indicator code from the WDI dataset. We add it to the `indicator.codes` variable.
+We choose the following Indicator codes from the WDI dataset. We add them to the `indicator.codes` variable.
 ```{r} 
-indicator.codes = c("NY.GDP.MKTP.CD")
+indicator.codes = c("NY.GDP.MKTP.CD", "NY.GDP.MKTP.KD.ZG")
 ```
 
 We read the WDI data for this code into the `df` dataframe.
@@ -202,7 +201,7 @@ Following new variables are created for our analysis.
 + `sector_F`
 
 ## `cleanedyear`
-We create a numeric variable called `cleanedyear` by extracting year from `posted_date`. This variable is used in merging the Kiva and WDI dataset.
+We create a numeric variable called `cleanedyear` by extracting year from `posted_date`. This variable is used for merging the Kiva and WDI dataset.
 ```{r}
 cleanedyear <- substr(loan.df[['posted_date']],1,4)
 loan.df[["cleanedyear"]] <- as.numeric(cleanedyear)
@@ -251,21 +250,24 @@ loan.df$sector_F <- factor(loan.df$sector)
 
 
 ## 3.5 Merging Kiva and WDI dataframes
-We use the `cleanedyear` and `location.country` variables in loan dataframe and join them on the basis of `country` and `year` variables in WDI dataframe. We use left join to gather all the data from Kiva dataset after merging.
+We use the `cleanedyear` and `location.country` variables in loan dataframe and join them on the basis of `country` and `year` variables in the WDI dataframe. We use left join to gather all the data from Kiva dataset after merging.
 ```{r}
 finaldf <-
   merge(loan.df, df, by.x = c("location.country", "cleanedyear"),
         by.y = c("country", "year"), all.x = TRUE
   )
 ```
-
+We remove the `null` records from the GDP annual growth rate.
+```{r}
+final1df <- finaldf[!is.na(finaldf$NY.GDP.MKTP.KD.ZG),]
+```
 
 # 4. Variable summaries and visualizations
 In the next few sections, we analyze the significant single and multiple variables for our analysis. 
 
 ## 4.1 Total loan amount by country
-Since our analysis is primarily focused on loan amount and its relationship with other variables, loan amount plays a significant role in our analysis. 
-We visualize the loans and its distribution across various countries by plotting the loan amount on a world map.  
+Our analysis is primarily focuses on the loan amount and its relationship with other variables. 
+We visualize the loans and their distribution across various countries by plotting the loan amounts on a world map.  
 
 We load the map data from `world2` and exclude Antarctica from the map.
 ```{r}
@@ -293,10 +295,10 @@ map <- qplot(long, lat, data = world,
 map + theme(legend.position="bottom",
             legend.key.width = unit(3, "line"))
 ```
-We observe that amongst 250 countries for which loans are posted on Kiva website, maximum loan requirement is in developing countries of South America, Africa and Asia. Our focus is on these countries and providing insights that will help in redirecting more money to these countries. 
+We observe that amongst 250 countries for which loans are posted on the Kiva website, maximum loan requirement is in the developing countries of South America, Africa and Asia. Our report focuses on these countries and aims at providing insights that will help in redirecting more funds to these countries. 
 
 ## 4.2 Loan requirement by country
-We calculate the top 10 countries that have the most loan requirement for the year range 2006-2011. This will help lenders to focus on lending money to these specific countries which have the maximum need.  
+We identify the top 10 countries that have the largest loan requirements for the year range 2006-2011. This will help lenders to focus on funding loans for these specific countries thereby catering to their economic development.  
 
 We calculate total loan amount for every country and year.
 ```{r}
@@ -326,19 +328,19 @@ We calculate total loan amount for each country from 2006-2011.
 loan_amount_by_country_df_from2006_to2011$total <-
   rowSums(loan_amount_by_country_df_from2006_to2011[2:7])
 ```
-We sort this dataframe on the basis of total loan amount and get the records for top 10 countries which have the most total loan amount.
+We sort this dataframe on the basis of total loan amount and get the records for top 10 countries which have the largest total loan amounts.
 ```{r}
 loan_amount_by_country_df_from2006_to2011_top10 <- head(arrange(
   loan_amount_by_country_df_from2006_to2011, 
                desc(total)), n = 10)
 loan_amount_by_country_df_from2006_to2011_top10
 ```
-We see that Peru, Cambodia and Phillipines are the countries that have the most loan requirement. Hence lenders can filter the loan postings on Kiva website by these countries.
+We observe that Peru, Cambodia and Phillipines are the countries that have the largest loan requirement. Hence lenders can filter the loan postings on Kiva website for these countries.
 
-Also, it is important to note that for Cambodia, Bolivia and Nicaragua loan requirement increases till 2010 and then decreases in 2011. This can be due to economic stagnation or policy change in that country.
+Also, it is important to note that for Cambodia, Bolivia and Nicaragua loan requirement increases till 2010 and then decreases in 2011. This can be due to economic stagnation or policy changes within the nation.
 
 ## 4.3 Loan amount and sector
-This analysis provides an understanding of the total loan amount for each sector. There are 15 sectors for which loans are posted on Kiva website.
+This analysis provides an understanding of the total loan amount for each sector. There are 15 sectors for which loans are posted on the Kiva website.
 
 We calculate the total loan amount for each sector.
 ```{r}
@@ -350,7 +352,7 @@ We create the `loan_amount_by_sector_df` dataframe from the `loan_amount_by_sect
 loan_amount_by_sector_df <-data.frame(names(loan_amount_by_sector),
                                       loan_amount_by_sector)
 ```
-The code chunk below plots the graph for total loan amount for each sector and sort it on the basis of loan amount.
+The code chunk below plots the graph for total loan amount for each sector and sorts it on the basis of loan amount.
 ```{r}
 loan_amount_by_sector_df %>%
   ggplot (aes(x = reorder(names(loan_amount_by_sector),
@@ -361,8 +363,7 @@ loan_amount_by_sector_df %>%
   geom_bar(stat = "identity") +
   coord_flip()
 ```
-We observe that people in the agriculture, food and retail sectors are asking for the most amount of loans. Lenders should focus on lending money to the loans in these sectors.
-Entertainment and wholesale sectors have the least loan requirement.
+We observe that people are asking for the highest amount of loans in the agriculture, food and retail sectors. Lenders should emphasize on funding loans in these specific sectors. Entertainment and wholesale sectors have the least loan requirement.
 
 To further analyze the total loan amount distribution by sector we use a box plot. 
 We modify the wide scale to 10 ~ 90 percentile to eliminate extreme variables. 
@@ -376,7 +377,7 @@ geom_boxplot(outlier.shape = NA) +
 scale_y_continuous(limits = quantile(loan.df$loan_amount_numeric, c(0.1, 0.9))) +   
 coord_flip()
 ```
-We could see that wholesale has the highest average loan amount and low variation as compared to other sectors. Food and entertainment sectors have high variation.
+We see that wholesale has the highest average loan amount and has low variation as compared to the other sectors. Food and entertainment sectors have high variation.
 
 ## 4.4 `borrowers.genderF`
 The `borrowers.genderF` variable represents the loan borrower's gender.
@@ -392,12 +393,13 @@ loan.df %>%
   ggplot(aes(x=borrowers.genderF)) +
   geom_bar(aes(fill=borrowers.genderF))
 ```
-We observe that around 70 percent of the loans posted on the Kiva website are by females.
+We observe that around 70 percent of borrowers on the Kiva website are females.
 
 
 ## 4.5 Loan amount, gender and sector
-We analyze the relationship between the total loan amount, gender and sector. Our goal is to visualize the gender wise distribution of loan amount of every sector. This will enable the lenders to help the society in achieving gender equality. 
-Below code plots a mosaic graph which represent the gender on the x-axis, sector on y-axis and the width of the bars as loan amount.
+We analyze the relationship between the total loan amount, gender and sector. Our goal is to visualize the gender based distribution of loan amount in each sector. This will enable the lenders to help the society in achieving gender equality.
+
+Below code plots a mosaic graph which represents the gender on the x-axis, sector on y-axis and the width of the bars as loan amount.
 ```{r}
 mosaicplot(sector_F ~ borrowers.genderF, data = loan.df,
            main = "Gender of borrower for each sector",
@@ -405,20 +407,20 @@ mosaicplot(sector_F ~ borrowers.genderF, data = loan.df,
            dir = c('h','v'), las = 2,
            col = c(2:9))
 ```
-We observe that despite 70 percent of the total loans posted are by females, some sectors like Construction, Transportation and Manufacturing have more loan postings by males.
+We observe that 70 percent of the total loans posted are by females. However, some sectors like construction, transportation and manufacturing have more loan postings by males.
 
 
 ## 4.6 Country's GDP and their loan amount requirement
-We analyze the relationship between the total loan amount for the countries with higher loan requirement and the GDP of those countries. As Kiva aims to alleviate poverty from the developing countries, this analysis helps Kiva and lenders to contribute towards the country's development by making better decision of lending loans.
+We analyze the relationship between the total loan amount for the countries with higher loan requirement and the GDP of those countries. As Kiva aims to alleviate poverty in the developing countries, this analysis helps Kiva and the lenders to contribute towards the country's development by making informed decisions on funding loans.
 
-We conducted this analysis for a year range of 2006 to 2011.
+We conduct this analysis for a year range of 2006 to 2011.
 
 We drop all null `posted_date` records from the loans dataframe. We observe that in some records `posted_date` is null but `loan_amount` is not null. We remove the records with null `posted_date` before adding the `loan_amount` by year.
 ```{r warning=FALSE}
 loan.df <- loan.df[!is.na(loan.df$cleanedyear),]
 ```
 
-We create a dataframe called `GDP_df` with GDP, year and top 10 countries which have the most loan amount requirement.
+We create a dataframe called `GDP_df` with GDP, year and top 10 countries which have the largest loan amount requirement.
 ```{r}
 GDP_df <- data.frame(df$year, df$NY.GDP.MKTP.CD, df$country)
 ```
@@ -431,7 +433,7 @@ loan_amount_by_country_df_from2006_to2011_top10_long <-
 
 We plot different graphs based on the countries and observe the relationship between GDP and loan amount over the years.
 
-We merge `loan_amount_by_country_df_from2006_to2011_top10_long` dataframe which has the top 10 countries with the most amount of loan requirement for the year 2006-2011 and `GDP_df` dataframe created above by `country` and `year`. 
+We merge `loan_amount_by_country_df_from2006_to2011_top10_long` dataframe which has the top 10 countries with the largest amount of loan requirement for the year range 2006-2011 and `GDP_df` dataframe created above by `country` and `year`. 
 ```{r warning=FALSE}
 loan_GDP_df <- merge(loan_amount_by_country_df_from2006_to2011_top10_long, 
                      GDP_df, by.x = c("country", "variable"),
@@ -588,33 +590,36 @@ p10 = p10+theme(legend.position="bottom") + facet_grid(variable ~ ., scales = "f
 ```{r message=FALSE}
 grid.arrange(p1, p2, ncol=2)
 ```
-[Write takeaway]
+Loan requirement in Peru is increasing with its GDP, however Peru faced economic stagnation between 2008-2009. Loan requirement in Cambodia increases with its GDP till the year 2010 and decreases between 2010-2011. 
+
 ```{r}
 grid.arrange(p3, p4, ncol=2)
 ```
-[Write takeaway]
+We observe that GDP of Phillipines declined between 2008 to 2009, however the requirement of loans constantly increased from 2006 to 2011. Loan requirement in Uganda is increasing with its GDP.  
+
 ```{r}
 grid.arrange(p5, p6, ncol=2)
 ```
-[Write takeaway]
+Loan amount requirement in Bolivia increases with the country's GDP but suddenly decreases between 2009-2011. 
+We observe that Tajikistan's requirement for loans increases till 2009 then decreases till 2010 and then again increases in 2011. 
+
 ```{r}
 grid.arrange(p7, p8, ncol=2)
 ```
-[Write takeaway]
+We observe that Kiva loans got popular in Kenya only after strugling between 2006-2009. They skyrocketted between 2009-2011. Kenya's GDP increased between 2006-2011. 
+Nicargua's GDP increased till 2008 and then decreased in 2009 and then increased in 2010 and 2011. However, the loans requirement increased till 2010 and then decreased in 2011.
 ```{r}
 grid.arrange(p9, p10, ncol=2)
 ```
-[Write takeaway]
 
-Comparing the countries having the maximum loan requirement we observe that the countries with the lowest GDP are the ones asking for maximum loan amount.
-
+Comparing the countries which have the largest loan requirements we observe that the countries with the lowest GDP are asking for higher loan amounts.
 
 
 ## 4.7 Average loan amount, paid amount and sector
-Kiva doesn't guarantee that loans will be paid back but its important for the lender to have that information before lending. We analyze average loan amount against the average paid back amount for every sector.
-`Loan amount`, `paid amount` and `sector` are required for this analysis. The average value of loan and paid amount for each sector is calculated and represented in bar graph.
+Kiva doesn't guarantee that loans will be paid back but it's important for the lender to have that information before lending money. We analyze the average loan amount against the average paid back amount for every sector.
+`Loan amount`, `paid amount` and `sector` are required variables for this analysis. The average value of loan and paid amount for each sector is calculated and represented in a bar graph.
 
-Convert `paid_amount` from charactor to numeric. Create `sel_finaldf` data frame from `loan.df` by selecting `loan_amount` and `sector`.
+Convert `paid_amount` from character to numeric. Create `sel_finaldf` data frame from `loan.df` by selecting `loan_amount` and `sector`.
 ```{r warning=FALSE}
 loan.df["paid_amount"] <- as.numeric(loan.df$paid_amount)
 
@@ -629,56 +634,47 @@ sel_bysec <- ddply(sel_finaldf, .(sector), summarize,
 ```
 We calculate average loan amount and paid amount by sector.
 ```{r}
-#sel_bysec[["total_val"]] <- sel_bysec$paid1 + sel_bysec$loan1
 dfm <- melt(sel_bysec, id.vars = c('sector'))
 ggplot(dfm, aes(x = factor(sector), y = value, fill = variable) ) +
   geom_bar(stat="identity", position = 'dodge') +
-  ggtitle("Average loan amount and paid amount by secotr") +
+  ggtitle("Average loan amount and paid amount by sector") +
   xlab("sector") +
   ylab("amount") +
   coord_flip()
-
 ```
-Its impressive to observe that except education sector almost all sectors maintain a good loan repayment capability. We also conclude that despite being an important sector for development, lenders might want to lend less money to education sector because of high number of loan defaulters.
+Its impressive to observe that except education sector almost all sectors maintain a good loan repayment capability.
 
 
-## 4.8 Loan amount, Status and Sector
-To understand the working of loans, status plays an imporant role. To analyze the status variable we create a factor variable called `statusF`, from the `status` character variable. 
+## 4.8 Loan amount, status and sector
+To understand the working of loans, status plays an important role. To analyze the status variable we create a factor variable called `statusF` from the `status` character variable. 
 ```{r}
 loan.df$statusF <- factor(loan.df$status)
 table(loan.df$statusF)
 ```
-We see that there are 8 loan statuses which means:
+We see that there are 8 loan statuses:
 
-* defaulted
-Loans are never paid back after not being paid for 6 months. They are financial loss to the lender of that loan.
+* defaulted - Loans are never paid back after not being paid for 6 months. They are financial loss to the lender of that loan.
 
-* expired
-If the loan doesn't get fully funded within 30 days then it "expires".
+* expired - If the loan doesn't get fully funded within 30 days then it "expires".
 
-* funded
-Loans that are completely funded are in "funded" state.
+* funded - Loans that are completely funded are in "funded" state.
 
-* fundraising
-These are the loans which are not yet funded. Lenders can only lend money to these loans.
+* fundraising - These are the loans which are not yet funded. Lenders can only lend money to these loans.
 
-* in_repayment
-When the loan is in repayment, it means that the loan has been disbursed to the borrower and they are in process of using the funds.
+* in_repayment - When the loan is in repayment, it means that the loan has been disbursed to the borrower and they are in process of using the funds.
 
-* paid
-These are the loans which are fully paid back by the borrower.
+* paid - These are the loans which are fully paid back by the borrower.
 
-* refunded
-Few loans or a portion of it needs to be refunded, those loans maintain "refunded" status.
+* refunded - Few loans or a portion of it needs to be refunded, those loans maintain "refunded" status.
 
 
 ```{r, include=FALSE}
 loan.df %>%
   group_by(statusF,sector_F) %>% tally()
 ```
-We observe that 77 percent of the loans have paid status and only 2 percent loans are default. This increases the confidence of lenders in Kiva's model.
+We observe that 77 percent of the loans have `paid` status and only 2 percent loans are `default`. This increases the confidence of lenders in Kiva's model.
 
-We further visualise the status of loans based on sector.
+We further visualize the status of loans based on sector.
 ```{r}
 op <- par(mar = rep(2, 4))
 mosaicplot(sector_F ~ statusF, data = loan.df,
@@ -692,19 +688,19 @@ We conclude that majority of the loans are paid back, however some borrowers wit
 
 
 ## 4.9 The time from funded date to payback date by top 10 loan amount countries
-Kiva does not provide any information to lenders about the time period of when their loan will be repayed but it's imperative for a lender to know about the timeline before lending money. We analyze the time period when a loan is funded and is paid back for the countries which have the most loan requirement.
+Kiva does not provide any information to lenders about timline of loan repayment, but it's imperative for a lender to have knowledge of the timeline patters for prior loans before lending money. We analyze the time period when a loan is funded and is paid back for the countries which have the largest loan requirements.
 
 We calculate the difference in days by subtracting funded date from paid date and convert the days.
 ```{r warning=FALSE}
 loan.df$day_diff <- 
   as.numeric(loan.df$paid_date_cleaned - loan.df$funded_date_cleaned, "days")
 ```
-We select top 10 country by amount using filter.
+We select top 10 countries by loan amount using filter.
 ```{r}
 loan.df_date <-
   filter(loan.df, loan.df$countryF %in% c(top10_country_name))
 ```
-Plot boxplot and change the scale of the graph to eliminate outliers.
+We plot a boxplot and change the scale of the graph to eliminate outliers.
 ```{r warning=FALSE}
 loan.df_date %>%
   ggplot(aes(countryF, day_diff)) +
@@ -715,30 +711,37 @@ loan.df_date %>%
   scale_y_continuous(limits = quantile(loan.df_date$day_diff, c(0.1, 0.9), na.rm = TRUE)) +
   coord_flip()
 ```
-We observe that most of the loans are payed back within an year. We also conclude that Phillippines has the shortest average payback period and Kenya, Cambodia have highest average payback period among top 10 borrowers. Therefore lending money in Phillipines is the best option for lender.
+We observe that most of the loans are paid back within a year. We also conclude that Phillippines has the shortest average payback period whereas Kenya and Cambodia have the highest average payback period among the top 10 borrowers. Therefore, Phillipines is the fastest option to get back the money lended.
 
 
 # 5. Relationships between variables
-The loan amount is compared with other variables such as `country`, `sector`, `activity`, `status`, `lendercount`. The average loan amount is calcualted and a new column is created, which takes the value 0 if the loan amount is less than average loan amount and value 1 if the loan amount is greater than average loan amount. This tells which particular sector or country or activity takes loan amount above average most times and which others takes less amount.
+In the next few sections we analyze the relationship between several variables using association rules.
+ 
+## 5.1 Relationship between Loan amount and other variables
 
-Below code converts `loan_amount` column into numeric value. A new dataframe is created using `dplyr` function. This dataframe has new column, `loan_amount_check` which has a value 0 for loan amounts below its average and has a value 1 for the loan amount higher than its average value. Another new column `lender_count_quant` is created which groups the lender count into 4 quantiles. Q1 denotes lender counts, which have values in between 0 and 25% of total counts, Q2 in between 25% and 50% of total counts, Q3 in between 50% and 75% of total counts and Q4 in between 75% and 100% of total lender counts. Finally, the variables that are required are selected using select function.
+We compare the loan amount with other variables such as `country`, `sector`, `activity`, `status`, `lendercount`. 
 
+We convert `loan_amount` and `lender_count` into numeric.
 ```{r}
 loan.df["loan_amount"] <- as.numeric(loan.df$loan_amount)
 loan.df["lender_count"] <- as.numeric(loan.df$lender_count)
+```
+We divide the loan amount into two categories- "0" and "1" where "0" refers to the loan amount which is less than the average loan amount and "1" refers to the loan amount which is greater than the average loan amount. We store this in the variable `loan_amount_check` and analyze the sector, country and activity based on this parameter.
+
+We group the lender count into 4 quantiles - Q1, Q2, Q3, Q4. Q1 and create a variable called `lender_count_quant`. Q1 denotes lender counts which have values in between 0 and 25% of total lender count, Q2 in between 25% and 50% of total lender counts, Q3 in between 50% and 75% of total lender count and Q4 in between 75% and 100% of total lender count.
+```{r}
 finaldf_loanamount <- loan.df %>%
   mutate(loan_amount_check = ifelse(loan_amount >=mean(loan_amount), 1, 0)) %>%
   mutate(lender_count_quant = cut(lender_count, 
-      quantile (lender_count, c (0, .25, .5, .75, 1)), 
-          labels=c('Q1','Q2','Q3','Q4'))) %>%
+                                  quantile (lender_count, c (0, .25, .5, .75, 1)), 
+                                  labels=c('Q1','Q2','Q3','Q4'))) %>%
   select(lender_count_quant,status,activity,sector,
-            location.country,loan_amount_check,borrowers.gender)
+         location.country,loan_amount_check,borrowers.gender)
 
 finaldf_loanamount <- data.frame(finaldf_loanamount)
 ```            
 
-For association rules to be applied, the variables should be factors. Hence the required variables are converted into factors.
-
+We convert the variables into factors to apply association rules.
 ```{r}
 finaldf_loanamount["lender_count_quant"] <- as.factor(finaldf_loanamount$lender_count_quant)
 finaldf_loanamount["status"] <- as.factor(finaldf_loanamount$status)
@@ -749,10 +752,10 @@ finaldf_loanamount["loan_amount_check"] <- as.factor(finaldf_loanamount$loan_amo
 finaldf_loanamount["borrowers.gender"]  <- as.factor(finaldf_loanamount$borrowers.gender)
 ```
 
-For applying Apriori rule, parameters can be set to control the number of results. These are support of 0.01, confidence of 0.5 and maxlen of 2. Since our analysis focus on loan amount, rhs value is set to two different values of `loan_amount_check` (0 and 1) and lhs is set to default. The result is sorted by lift value.
+We control the number of results by setting support as 0.01, confidence as 0.5 and maxlen as 2.
 
+To analyze loan amount, rhs value is set to `loan_amount_check` (0 and 1) and lhs is set to default. The result is sorted by lift value.
 ```{r warning=FALSE, results='hide'}
-
 apriori.appearance = list(rhs=c("loan_amount_check=0",
       "loan_amount_check=1"),default="lhs")
 apriori.parameter = list(support=0.01,confidence=0.2,minlen=1,maxlen=3)
@@ -761,61 +764,53 @@ rules = apriori(finaldf_loanamount, parameter =
 rules.sorted <- sort(rules, by = "lift")
 ```
 
-The redundat rules are found and removed using the below code
+The redundat rules are identified and removed using the below code.
 ```{r warning=FALSE}
 subset.matrix <- is.subset(rules.sorted, rules.sorted)
 subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
 redundant <- colSums(subset.matrix, na.rm=T) >= 1
 
 rules.pruned <- rules.sorted[!redundant]
-inspect(rules.pruned)
 ```
 
-Based on sorting by lift value, the lenders in quantile 4 are associated with higher loan amounts in Bolivia. It is a known fact that large number of lenders are required if the loan amount is high and this rule also focuses on country apart from lender count. 
+In the below rule, we analyze the number of lenders that are associated with higher loan amount in Bolivia.
 
 ```{r warning=FALSE}
 inspect(rules.pruned[1])
 ```
 
-This has a support value of 0.011% which indicates the percentage of the higher loans associated with large count of lenders and as well as in country Bolivia. It has a confidence of 96% and higher lift value 3.012.
+The support value of 0.011% indicates that the percentage of the higher loans are associated with large number of lenders in Bolivia. It has a confidence of 96% and higher lift value 3.012.
 
-Below result shows that large number of lenders are interested in services sector for lending higher loan amounts.
 
 ```{r warning=FALSE}
 inspect(rules.pruned[4])
 ```
+We observe that large number of lenders are interested in service sector for lending higher loan amounts.
+This has the fourth highest lift value of 2.58 and support value is 0.01 which reflects that among all sectors, lenders are interested in services sector and 97% are associated with higher loan amounts. 
 
-This has the fourth higher lift value of 2.58. The support value is 0.01 and the confidence value shows that among all sectors, lenders are interested in services sector and its 97% associated with higher loan amounts. 
-
-An interesting rule which we came across genders with respect to loans are provided below. Though the percentage of loans taken by males are low across various countries/sectors, the loan amount taken by them are higher.
-
-```{r warning=FALSE}
-inspect(rules.pruned[69])
-```
-
-This rule has a support value of 10% stating that 10% of males across various countries and sectors are associated with higher loan amount The confidence value shows that 41% of gender who are male are associated with higher loan amount. It has a lift value of 1.28 which indicates that it is 1.28 times more likely to occur in the data.
-
-Another interesting rule with respect to gender and loan amount is explained below. We have already stated that females are involved in larger percentage of loans when compared to male. But they are associated with less amount of loans.
+We observe an interesting rule that relates gender with loan amount. Males tend to borrow larger loan amount, however they take lesser percentage of loans when compared to females. And female borrowers tend to take smaller loans, however they take larger percentage of loans when compared to male.
 
 ```{r warning=FALSE}
-inspect(rules.pruned[136])
+inspect(rules.pruned[68])
 ```
+Support value of 10% states that 10% of males across various countries and sectors are associated with higher loan amount, the confidence value shows that 41% of gender who are male are associated with higher loan amount. It has a lift value of 1.28 which indicates that it is 1.28 times more likely to occur with the data.
 
-This rule has very high support value of 52% stating that 52% of females across various countries and sectors are associated with smaller loan amount. The confidence value shows that 70% of gender who are female are associated with lesser loan amount. It has a lift value of 1.04 which indicates that it is 1.04 times more likely to occur in the data.
-
-From the below result, we infer that people who have paid the loan amount are those who got loans less than average loan amount. Those who got higher loans are in other status.
 ```{r warning=FALSE}
-inspect(rules.pruned[143])
+inspect(rules.pruned[133])
 ```
+This rule has very high support value of 52% which implies that females across various countries and sectors are associated with smaller loan amount. The confidence value shows that 70% of females are associated with lesser loan amount. It has a lift value of 1.04 which indicates that it is 1.04 times more likely to occur in the data.
 
+The below rule suggests that people taking loans less than the average loan amount are more likely to pay back the loan.
+```{r warning=FALSE}
+inspect(rules.pruned[140])
+```
 This has higher support value of 53% and a confidence of 69% stating that of all the statuses that are paid, loan amount is of lesser value. A lift of 1.02 states that this scenario is 1.02 times more likely to happen with the data.
 
-## Relationship between status and other variables
+## 5.2 Relationship between status and other variables
 
-The next analysis is regarding status of loans. We picked defaulted and in_repayment statuses which are the loans that are not paid back completely. We wanted to see how much risk is associated with higher loan amounts and hence filtered loans above the average value. 
+We select `defaulted` and `in_repayment` statuses which represents the loans that are not paid back completely. We analyze the risk that is associated with higher loan amounts and hence filter loans that are above the average value. 
 
-A new dataframe is created using the below dplyr function which filters defaulted and in_repayment status and selects the required variable for comparison.
-
+We create a new dataframe after filtering `defaulted` and `in_repayment` status and select the required variable for comparison.
 ```{r}
 avgloan_df <- loan.df[loan.df$loan_amount > mean(loan.df$loan_amount),]
 finaldf_status <- avgloan_df %>%
@@ -826,9 +821,7 @@ finaldf_status <- avgloan_df %>%
 finaldf_status <- data.frame(finaldf_status)
 ```
 
-
-For association rules to be applied, the variables should be factors. Hence the required variables are converted into factors.
-
+We convert all variables to factors to apply association rules.
 ```{r}
 finaldf_status["status"] <- as.factor(finaldf_status$status)
 finaldf_status["sector"] <- as.factor(finaldf_status$sector)
@@ -836,79 +829,133 @@ finaldf_status["location.country"] <- as.factor(finaldf_status$location.country)
 finaldf_status["borrowers.gender"] <- as.factor(finaldf_status$borrowers.gender)
 ```
 
-
-Apriori rule is applied by setting appropriate values to support, confidence and maxlen. Here we need to set confidence and support values to low (0.01) as only one status is getting predicted for higher values. Here defaulted and in_repayment status are given as rhs and rest as lhs values. The result is sorted by lift value.
-
+We control the number of results by setting confidence and support values to low (0.01) as only one status is predicted for higher values.
+We set `defaulted` and `in_repayment` status as rhs and other variables as lhs. The result is sorted by lift value.
 ```{r warning=FALSE, results='hide'}
-
 apriori.appearance = list(rhs=c("status=defaulted","status=in_repayment"),
-    default="lhs")
+                          default="lhs")
 apriori.parameter = list(support=0.01,confidence=0.01,minlen=1,maxlen=3)
 
 rules_status = apriori(finaldf_status, parameter = 
                          apriori.parameter,appearance =   apriori.appearance)
 
 rules_status.sorted <- sort(rules_status, by = "lift")
-inspect(rules_status.sorted)
 ```
 
-The redundant rules are found and removed using the below code
-
+The redundant rules are identified and removed using the below code.
 ```{r}
 subset.matrix <- is.subset(rules_status.sorted, rules_status.sorted)
 subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
 redundant <- colSums(subset.matrix, na.rm=T) >= 1
 
 rules_status.pruned <- rules_status.sorted[!redundant]
-inspect(rules_status.pruned)
 ```
 
-After sorting the rules based on higher lift value, Togo is top country which has female genders associated with defaulted loan status. 
-
+After sorting the rules based on higher lift value we observe that Togo has the highest female count that are associated with `defaulted` loan status.
 ```{r}
 inspect(rules_status.pruned[1])
 ```
 
-They have a support value of 0.01 and confidence of 97% which determines the percentage of female genders who are associated with defaulted loan status. They have a lift value of 7.46
+They have a support value of 0.01 and confidence of 97% which determines the percentage of female genders who are associated with `defaulted` loan status. They have a lift value of 7.46
 
-Similar to Togo, Pakistan is one other country where female genders are associated with defaulted loan status. It ranks next to Togo based on higher lift value.
-
+Similar to Togo, Pakistan also has high female gender borrowers which are associated with `defaulted` loan status. It ranks next to Togo based on higher lift value.
 ```{r}
 inspect(rules_status.pruned[3])
 ```
-
 They have a support value of 0.012 and confidence of 63% which determines the percentage of female genders who are associated with defaulted loan status. They have a lift value of 4.90.
-
-Another interesting rule which we found with respect to defaulted loan status is provided below.
 
 ```{r}
 inspect(rules_status.pruned[10])
 ```
+We also observed that in agriculture loans which are borrowed by males have `default` status. It has a support value of 0.013 and a confidence of 15% which states the percentage of agriculture sector in association with `default` loan status. They have a lift value of 1.162.
 
-Agriculture is one sector where loans borrowed by males are in defaulted status. It has a support value of 0.013 and a confidence of 15% which states the percentage of agriculture sector in association with defaulted loan status. They have a lift value of 1.162.
-
-Below result shows the percentage of male population associated with defaulted status.
-
+Below result shows the percentage of male population associated with `default` status.
 ```{r}
 inspect(rules_status.pruned[37])
 ```
+This rule has a support of 0.04%. The confidence value shows that 14% of gender who are male are associated with defaulted loan status. A lift of 1.12 states that this scenario is 1.12 times more likely to happen.
 
-This rule has a support of 0.04%. The confidence value shows that 14% of gender who are male are associated with defaulted loan status. A lift of 1.12 states that this scenario is 1.12 times more likely to happen with the data.
-
-From above results, it is clear that lenders should be more cautious while providing loans to countries such as Togo, Pakistan and also for agriculture sector as they are more likely to end up with defaulted loaan status.
+From above results, it is clear that lenders should be more cautious while funding loans to countries like Togo, Pakistan and also for agriculture sector as they are more likely to end up with `default` loan status.
 
 Countries such as Vietnam, Nigeria and india have higher lift values with repect to `in_repayment` status. 
 
 Below rule shows the female association with respect to `in_repayment` status.
-
 ```{r}
-#inspect(rules_status.pruned[65])
+inspect(rules_status.pruned[65])
 ```
-
-
-This rule has very high support value of 60% stating that 60% of females across various countries and sectors have their loan status as `in_repayment`. The confidence value shows that 87% of gender who are female are associated with `in_repayment` loan status. It has a lift value of 1.008 which indicates that it is 1.008 times more likely to occur in the data.
+This rule has very high support value of 60% stating that 60% of females across various countries and sectors have their loan status as `in_repayment`. The confidence value shows that 87% of gender who are female are associated with `in_repayment` loan status. It has a lift value of 1.008 which indicates that it is 1.008 times more likely to occur.
 
 As female population are trying to pay back the loan, there are two possibilities that can occur, either they can completely pay back the loan or they can be in defaulted loan status. As we have already stated that majority of female populations are associated with lower value of loan amounts, there are less chances that female population can be in defaulted status when it comes to larger value of loan amounts, even though they are associated with certain defaulted status.
+
+## 5.3 Relationship between GDP and other variables
+
+We have already described about loan amount distribution across various sectors, genders and countries. Let us see how the GDP have impact on these factors. Here GDP per annual growth rate is used for the comparison. This indicator from WDI is already merged with Kiva and the resultant dataframe is available as final1df.
+
+We group GDP values into four quantiles, Q1 is the GDP growth rate in between 0% and 25% of total rates, Q2 is the GDP growth rate in between 25% and 50% of total rates, Q3 is the GDP growth rate in between 50% and 75% of total rates and Q4 is the GDP growth rate in between 75% and 100% of total growth rates. The growth rate is compared with loan amount, gender and country. The loan amount is grouped into four values - low, medium, high and very high based on the value of amount.
+
+```{r}
+final1df["loan_amount"] <- as.numeric(final1df$loan_amount)
+finaldf_GDP <- final1df %>%
+  mutate(GDP_quant = cut(NY.GDP.MKTP.KD.ZG, 
+      quantile (NY.GDP.MKTP.KD.ZG, c (0, .25, .5, .75, 1)), 
+          labels=c('Q1','Q2','Q3','Q4'))) %>%
+  mutate(loan_quant = cut(loan_amount, 
+      quantile (loan_amount, c (0, .25, .5, .75, 1)), 
+          labels=c('low','medium','high','veryhigh'))) %>%
+  select(location.country,loan_quant,borrowers.gender,GDP_quant)
+```
+
+To apply the rules of association, the variables should be converted to factors.
+
+```{r}
+finaldf_GDP["location.country"] <- as.factor(finaldf_GDP$location.country)
+finaldf_GDP["sector"] <- as.factor(finaldf_GDP$sector)
+finaldf_GDP["borrowers.gender"] <- as.factor(finaldf_GDP$borrowers.gender)
+finaldf_GDP["GDP_quant"] <- as.factor(finaldf_GDP$GDP_quant)
+finaldf_GDP["loan_quant"] <- as.factor(finaldf_GDP$loan_quant)
+```
+
+We control the number of results by setting support as 0.01, confidence oas 0.2 and maxlen as 2.
+
+The different quantiles of GDP growth rate are set to rhs value other variables as lhs. The result is sorted by lift value.
+
+```{r warning=FALSE, results='hide'}
+
+apriori.appearance = list(rhs=c("GDP_quant=Q1",
+      "GDP_quant=Q2","GDP_quant=Q3", "GDP_quant=Q4"),default="lhs")
+apriori.parameter = list(support=0.01,confidence=0.2,minlen=1,maxlen=3)
+rules_GDP = apriori(finaldf_GDP, parameter = 
+                  apriori.parameter,appearance =   apriori.appearance)
+rules_GDP.sorted <- sort(rules_GDP, by = "lift")
+
+```
+
+The redundant rules are found and removed using the below code
+
+```{r warning=FALSE}
+subset.matrix <- is.subset(rules_GDP.sorted, rules_GDP.sorted)
+subset.matrix[lower.tri(subset.matrix, diag=T)] <- NA
+redundant <- colSums(subset.matrix, na.rm=T) >= 1
+
+rules_GDP.pruned <- rules_GDP.sorted[!redundant]
+```
+
+From our previous statement, it is clear that males borrow higher loans when compared to females. Below rule shows relationship between loan amount and male with respect to GDP.
+
+```{r warning=FALSE}
+inspect(rules_GDP.pruned[43])
+```
+
+The rule states that in countries where males are associated with higher loans, GDP growth rate is high. This rule has a support value of 0.026% mentioning that 0.026% of males who takes higher loans in any country have higher growth rate with respet to GDP. It has a confidence value of 31% and lift value of 1.28 which indicates that it is 1.28 times more likely to occur in the data.
+
+Another interesting rule with respect to female is described below. We have already stated that females borrow lesser loan amount. Below rule shows this particular relation with respect to GDP.
+
+```{r warning=FALSE}
+inspect(rules_GDP.pruned[50])
+```
+
+From the above rule, we infer that when females tend to take lesser loans, GDP growth rate of the country seems to be very low(Q1). This has a support value of 0.06 mentioning that 0.06% of females who takes lesser loans in any country have lesser growth rate with respet to GDP. It has a confidence value of 29% and a lift value of 1.16.
+
 
 # 6. Conclusion
 
