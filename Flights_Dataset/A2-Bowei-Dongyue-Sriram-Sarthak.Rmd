@@ -44,18 +44,6 @@ In the following two sub sections we understand the data and its structure. We f
 The airline data consists of several variable that provides information about flights; origin, destination, delays, cancellation etc. The data is available from the Research and Innovative Technology Administration (RITA) website. For our analysis we have chosen the data for January 2016 and selected the following variables.
 It has approximately 445827 records.
 
-```{r, include=FALSE}
-library(dplyr)
-library(magrittr)
-library(ggplot2)
-library(ffbase)
-library(reshape2)
-library(gridExtra)
-library(gapminder)
-library(grid)
-library(igraph)
-library(RNeo4j)
-```
 
 
 | Variable         | Type       | Unit  | Description                                   |
@@ -70,8 +58,8 @@ library(RNeo4j)
 `FL_NUM`	            | Number   | | Flight number                                 |
 `ORIGIN`	            | Character| | Origin of the flight                          |
 `DEST`	              | Character| | Destination of the flight                     |
-`CRS_DEP_TIME`	      | Time   | local time(hhmm) | Scheduled departure time                      |
-`DEP_TIME`	          | Time   | local time(hhmm) | Actual departure time                         |
+`CRS_DEP_TIME`	      | Time   | local time(hhmm) | Scheduled departure time             |
+`DEP_TIME`	          | Time   | local time(hhmm) | Actual departure time              |
 `DEP_DELAY`	          | Number | minutes | Difference between scheduled and actual departure time|
 `DEP_DELAY_NEW`	      | Number | minutes | Difference between scheduled and actual departure time|
 `DEP_TIME_BLK`	      | Time   | hour | Scheduled time between gate in and gate out   |
@@ -81,11 +69,11 @@ library(RNeo4j)
 `ARR_TIME`	          | Time   | local time(hhmm) | Actual Arrival Time of the flight             |
 `ARR_DELAY`	          | Number | minutes | Difference between scheduled and actual arrival time |
 `CANCELLED`	          | Number | | Value 1 indicates that flight is cancelled    |
-`DIVERTED`	          | Number | Value 1 indicates that flight is diverted     |
+`DIVERTED`	          | Number | | Value 1 indicates that flight is diverted     |
 `CRS_ELAPSED_TIME`	  | Number | minutes | Time from gate departure time to gate arrival time |
 `ACTUAL_ELAPSED_TIME`	| Number | minutes | Time taken by the flight from gate departure to gate arrival |
 `AIR_TIME`	          | Number | minutes | Flight time taken to travel                   |
-`DISTANCE`	          | Number | miles|  Distance between airports                     |
+`DISTANCE`	          | Number | miles |  Distance between airports                     |
 `CARRIER_DELAY`       | Number | minutes | Delays due to maintenance or crew problems |
 `WEATHER_DELAY`	      | Number | minutes | Delays due to meteorological conditions  |
 `NAS_DELAY`	          | Number | minutes | Delays due to non-extreme weather conditions |
@@ -110,20 +98,39 @@ The following libraries are used in this report:
 * `ggplot2`
 * `igraph`
 * `RNeo4j`
+* `reshap2`
+* `gridExtra`
+* `gapminder`
+* `grid`
+* `ffbase`
+
+```{r, include=FALSE}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(ffbase)
+library(reshape2)
+library(gridExtra)
+library(gapminder)
+library(grid)
+library(igraph)
+library(RNeo4j)
+```
+
 
 ## 3.2 Load the flights dataset 
 
 We load the flights data into a dataframe from the csv file downloaded from the server. 
 ```{r}
 flight.df = 
-  read.csv("D:/GRAD_SCHOOL/Summer2016/A2/data/209001837_T_ONTIME/209296560_T_ONTIME_2016_1.csv")
+  read.csv("D:/GRAD_SCHOOL/Summer2016/DataScience_DavidOury/A2/data/209001837_T_ONTIME/209296560_T_ONTIME_2016_1.csv")
 flight.df$X=NULL
 dim(flight.df)
 ```
 We see that there are 445827 number of flights in the particular month and there are 37 variables selected.
 
 ## 3.3 Create edges dataframe
-For network analysis in NEO4j, we create some dataframes that are required for our analysis.
+For network analysis in NEO4j graph database, we create some dataframes that are required for our analysis.
 
 We group by `origin` and `unique_carrier` and use aggregate function to calculate the average departure delay. We write this dataframe into a csv.
 ```{r results='hide'}
@@ -137,7 +144,7 @@ write.csv(edges_dep_delay.df,
           "C:/Users/Sarthak/Documents/Neo4j/default.graphdb/import/edges_dep_delay.csv")
 ```
 
-We group by `origin` and `destination` and aggregate the `CARRIER_DELAY`, `WEATHER_DELAY`, `NAS_DELAY`, `SECURITY_DELAY`, `LATE_AIRCRAFT_DELAY` to calculate their total. We write this dataframe into a csv.
+We group by `origin` and `destination` and aggregate the `CARRIER_DELAY`, `WEATHER_DELAY`, `NAS_DELAY`, `SECURITY_DELAY` and `LATE_AIRCRAFT_DELAY` to calculate their total sum. We write this dataframe into a csv.
 ```{r results='hide'}
 flight.df %>%
   group_by(ORIGIN,DEST) %>%
@@ -155,7 +162,7 @@ write.csv(edges_delays.df,
           "C:/Users/Sarthak/Documents/Neo4j/default.graphdb/import/edges_delays.csv")
 ```
 
-To create this dataframe we group by `origin`, `destination` and `carrier` and calcualte the count. We write this dataframe into a csv.
+To create this dataframe we group by `origin`, `destination` and `carrier` and calculate the count. We write this dataframe into a csv.
 ```{r results='hide'}
 flight.df %>%
   filter(CANCELLED == "1")  %>% 
@@ -192,14 +199,14 @@ carrier_count <- count(flight.df, UNIQUE_CARRIER)
 ggplot(carrier_count, aes(x = reorder(UNIQUE_CARRIER, n), y = n)) + 
   geom_bar(stat = "identity") + 
   geom_text(aes(label = n), vjust=-1, position = position_dodge(0.9),size = 3) + 
-  ggtitle("No of flights per carrier") + 
+  ggtitle("No of flights per carrier") +
   xlab("Carrier Name") + ylab("Number of flights")
 ```
 We observe that Southwest Airlines has the largest number of flights followed by American Airlines. Virgin America has the least.
 
 ## 4.2  Number of canceled flights by carrier
 
-We represent the number of canceled flights per carrier using bar graph.
+To get a better understanding of the number of flights canceled, we represent the number of canceled flights per carrier using a bar graph.
 ```{r}
 flight.df %>%
   subset(CANCELLED == 1) %>%
@@ -209,11 +216,10 @@ flight.df %>%
   ggtitle("Number of canceled flight by carrier") +
   xlab("Carrier") + ylab("No of canceled flights")
 ```
-We observe that American Airlines has the maximum number of cancelations followed by Southwest Airlines which is very close to AA. Hawaiian Airlines has the least number of cancelations.
-
+We observe that American Airlines has the maximum number of cancelations followed by Southwest Airlines which is very close to AA. Hawaiian Airlines has the least number of cancelations. Though its important to note that American Airlines has alot more number to total flights as compared to Hawaiian Airlines.
 
 ## 4.3 Number of flights operating per day
-To understand the distribution of number of flights over a week, we visualize the number of flights operating per day using bar chart. This will help us relate the effect that number of flights has on flight delay. 
+In this analysis we understand the distribution of number of flights over each day of the week and visualize the number of flights operating per day using bar chart. This will help us in deeper understanding of flight delay patterns. 
 ```{r}
 flight_count <- count(flight.df, DAY_OF_WEEK)
 ggplot(flight_count, aes(x = reorder(DAY_OF_WEEK, DAY_OF_WEEK), y = n)) + 
@@ -226,56 +232,26 @@ We observe that higher number of flights are operated on 5th and 7th day of the 
 
 
 ## 4.4 Destination airport and arrival delay
+In this section, we analyze the average delay time and percent delayed for top 10 destination airports(that is, airports with the largest arrival delay).
 
-We analyze the average delay time and percent delayed for top 10 destination airports with the largest arrive delay time.
+We group by `DEST` and calculate average arrival delay time and percent delayed for each destination airport and sort it by choosing the top 10 records that have the largest average delay time by using `top_n`.
 
-First, we calculated average arrive delay time and percent delayed for each destination airport and merged these two data frame by `DEST` by using `aggregate` and `merge`. Here are the top 6 records.
+Finally, we use `melt` function to stack the columns `des_average_delay_time` and `des_percent_delayed(%)` into a single column to be clearly displayed in graph.
 ```{r}
 flight.df %>%
-  aggregate(ARR_DELAY_NEW ~ DEST, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(ARR_DELAY_NEW ~ DEST, data=flight.df,
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "DEST")%>%
-  set_colnames(.,c("DEST","des_average_delay_time","des_percent_delayed(%)")) %>%
-  head()
+  select(DEST, ARR_DELAY_NEW) %>%
+  group_by(DEST)%>%
+  summarise("des_average_delay_time" = 
+              mean(ARR_DELAY_NEW,na.rm = TRUE) %>% round(),
+            "des_percent_delayed(%)" = 
+              length(which(ARR_DELAY_NEW > 0))*100/length(which(ARR_DELAY_NEW >= 0)) %>% round(2)) %>%
+  top_n(10,des_average_delay_time) %>%
+  melt(id.vars = c("DEST")) -> graph4.df
 ```
 
-Second, we sorted above data frame by choosing the top 10 records that have the largest average delay time by using `arrange` and `head`.
-```{r, echo=FALSE}
-flight.df %>%
-  aggregate(ARR_DELAY_NEW ~ DEST, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(ARR_DELAY_NEW ~ DEST, data=flight.df,
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "DEST")%>%
-  set_colnames(.,c("DEST","des_average_delay_time","des_percent_delayed(%)")) %>%
-  arrange(desc(des_average_delay_time)) %>%
-  head(n = 10)
-```
-
-Finally, in order to prepare the data for the graph we changed the structure of above data frame by using `melt`.
-```{r,echo=FALSE}
-flight.df %>%
-  aggregate(ARR_DELAY_NEW ~ DEST, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(ARR_DELAY_NEW ~ DEST, data=flight.df,
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "DEST")%>%
-  set_colnames(.,c("DEST","des_average_delay_time","des_percent_delayed(%)")) %>%
-  arrange(desc(des_average_delay_time)) %>%
-  head(n = 10) %>%
-  melt(id.vars = c("DEST"))
-```
-
-Finally, we draw a bar chart showing average delay time and percent delayed for top 10 destination airports that have the largest arrive delay time. Below code represents the bar graph which represents total number along x-axis and destination airport along y-axis.
+We plot a bar chart showing average delay time and percent delayed for top 10 destination airports that have the largest arrive delay time. Below code represents the bar graph which represents total number along x-axis and destination airport along y-axis.
 ```{r}
-flight.df %>%
-  aggregate(ARR_DELAY_NEW ~ DEST, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(ARR_DELAY_NEW ~ DEST, data=flight.df,
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "DEST")%>%
-  set_colnames(.,c("DEST","des_average_delay_time","des_percent_delayed(%)")) %>%
-  arrange(desc(des_average_delay_time)) %>%
-  head(n = 10) %>%
-  melt(id.vars = c("DEST")) %>% 
+graph4.df %>%
   ggplot(aes(x = reorder(DEST, value),
              y = value, fill = variable) ) +
   geom_bar(stat="identity", position = 'dodge') +
@@ -284,66 +260,35 @@ flight.df %>%
   geom_text(aes(label=value), vjust=0.5, hjust=1, color="white",
             position = position_dodge(0.8), size=3.5)+
   xlab("destination_airport") +
-      ylab("number") +
+  ylab("number") +
   coord_flip()
 ```
 
-We observe that in January 2016, all top 10 airports that have highest arrive delay time have more than 20 minutes arrive delay time and more than 36% flights arrived late. EKO (Elko Regional Airport) as the destination airport has the maximum average delay time of 43 minutes and its percent delayed is also very high that is 57.45% of flights that arrived late at this airport.
+We observe that in January 2016, all top 10 airports that have highest arrival delay have more than 20 minutes arrival delay time and more than 36% flights arrived late. EKO (Elko Regional Airport) as the destination airport has the maximum average delay time of 43 minutes and its percent delayed is also high that is 57.45% of flights that arrived late at this airport.
 
 ## 4.5 Origin airport and departure delay
 We analyze the average delay time and percent delayed for top 10 origin airports that have the largest departure delay time.
 
-First, we calculated average departure delay time and percent delayed for each origin airport and merged these two data frame by `ORIGIN` by using `aggregate` and `merge`. Here are the top 6 records.
-```{r, echo=FALSE}
-flight.df %>%
-  select(ORIGIN, DEP_DELAY_NEW) %>%
-  aggregate(.~ ORIGIN, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(DEP_DELAY_NEW ~ ORIGIN, data=flight.df, 
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "ORIGIN") %>%
-  set_colnames(.,c("ORIGIN","origin_average_delay_time","origin_percent_delayed(%)")) %>%
-  head()
-```
+We group by `ORIGIN` and calculate average departure delay time and percent delayed for each origin airport and sort it by choosing the top 10 records that have the largest average delay time by using `top_n`.
 
-Second, we sorted above data frame by choosing the top 10 records that have the largest average delay time by using `arrange` and `head`.
-```{r, echo=FALSE}
-flight.df %>%
-  select(ORIGIN, DEP_DELAY_NEW) %>%
-  aggregate(.~ ORIGIN, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(DEP_DELAY_NEW ~ ORIGIN, data=flight.df, 
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "ORIGIN") %>%
-  set_colnames(.,c("ORIGIN","origin_average_delay_time","origin_percent_delayed(%)")) %>%
-  arrange(desc(origin_average_delay_time)) %>%
-  head(n = 10)
-```
+Finally, we use `melt` function to stack the columns `origin_average_delay_time` and `origin_percent_delayed(%)` into a single column to be clearly displayed in graph.
 
-Finally, in order to prepare the data for the graph we changed the structure of above data frame by using `melt`.
-```{r,echo=FALSE}
-flight.df %>%
-  select(ORIGIN, DEP_DELAY_NEW) %>%
-  aggregate(.~ ORIGIN, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(DEP_DELAY_NEW ~ ORIGIN, data=flight.df, 
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "ORIGIN") %>%
-  set_colnames(.,c("ORIGIN","origin_average_delay_time","origin_percent_delayed(%)")) %>%
-  arrange(desc(origin_average_delay_time)) %>%
-  head(n = 10) %>%
-  melt(id.vars = c("ORIGIN"))
-```
-
-Finally, we draw a bar chart showing average delay time and percent delayed for Top 10 origin airports that have the largest departure delay time. Below code represents the bar graph which represents total number along x-axis and origin airport along y-axis.
 ```{r}
 flight.df %>%
   select(ORIGIN, DEP_DELAY_NEW) %>%
-  aggregate(.~ ORIGIN, data = .,FUN =. %>% mean(na.rm = TRUE) %>% round()) %>%
-  merge(aggregate(DEP_DELAY_NEW ~ ORIGIN, data=flight.df, 
-                  function(x) round(c(length(which(x > 0)))*100/length(x),2)),
-        by = "ORIGIN") %>%
-  set_colnames(.,c("ORIGIN","origin_average_delay_time","origin_percent_delayed(%)")) %>%
-  arrange(desc(origin_average_delay_time)) %>%
-  head(n = 10) %>%
-  melt(id.vars = c("ORIGIN")) %>%
+  group_by(ORIGIN)%>%
+  summarise("origin_average_delay_time" = 
+              mean(DEP_DELAY_NEW,na.rm = TRUE) %>% round(),
+            "origin_percent_delayed(%)" = 
+              (length(which(DEP_DELAY_NEW > 0))*100/length(which(DEP_DELAY_NEW >= 0))) %>% 
+              round(2)) %>%
+  top_n(10,origin_average_delay_time) %>%
+  melt(id.vars = c("ORIGIN")) -> graph5.df
+```
+
+We plot a bar chart showing average delay time and percent delayed for top 10 origin airports that have the largest departure delay time. Below code represents the bar graph which represents total number along x-axis and origin airport along y-axis.
+```{r}
+graph5.df %>%
   ggplot(aes(x = reorder(ORIGIN,value), 
              y = value, fill = variable) ) +
   geom_bar(stat="identity", position = 'dodge') +
@@ -356,12 +301,15 @@ flight.df %>%
   coord_flip()
 ```
 
-We observe that January 2016, all top 10 airports that have highest arrive delay time have more than 24 minutes arrive delay time and more than 19% flights arrived late. COD (Yellowstone Regional Airport) as the origin airport has the maximum average delay time of 58 minutes and its percent delayed is also very high that is 36.36% of flights arrived late at this airport.
+We observe that in January 2016, all top 10 airports that have highest arrival delay time have more than 24 minutes arrival delay time and more than 19% flights arrived late. COD (Yellowstone Regional Airport) has the maximum average delay time of 58 minutes and its percent delayed is also very high that is 36.36% of flights arrived late at this airport.
+
 
 ## 4.6 On-Time Arrival Performance
-In this section, we analyze the airline service quality performance. We researched the Airline On-Time Statistics and Delay Causes and observed that the displayed numbers are rounded and may not add up to the total. Later, we visualize them on a pie-chart.
+We researched the airline on-time statistics and delay causes and observed that the displayed numbers are rounded and may not add up to the total. 
 
-First, we calculate 5 delay reasons weighted count. While doing this calculation we considered that a flight is considered delayed when it arrived 15 minutes or more than the scheduled time and when multiple causes are assigned to one delayed flight, each cause is prorated based on delayed minutes it is responsible for.
+In this section we analyze the airline service quality performance and visualize them on a pie-chart.
+
+First, we calculate 5 delay reasons weighted count. While doing this calculation we observe a business rule that a flight is considered delayed when it arrives 15 or more minutes than the scheduled time. When multiple causes are assigned to one delayed flight, each cause is prorated based on delayed minutes it is responsible for.
 
 For example, we got this record for the 5 delay reasons.
 ```{r, echo=FALSE}
@@ -377,7 +325,7 @@ The weighted count of `NAS_DELAY` for this flight is:
 47 / (0+0+47+0+66)
 ```
   
-Then we calulate all `NAS_DELAY` weighted count for all the flight and after summing them we get the weighted count of `NAS_DELAY` that is the percentage of `NAS_DELAY` in total delay reasons. Similarly, we get the 5 delay reasons weighted count.
+Then we calculate all `NAS_DELAY` weighted count for all the flights and after summing them we get the weighted count of `NAS_DELAY` that is the percentage of `NAS_DELAY` in total delay reasons. Similarly, we get the weighted count for all the 5 delay reasons.
 ```{r}
 delay_reason_weighted_count <- flight.df %>%
   filter(ARR_DELAY_NEW >= 15 ) %>%
@@ -393,7 +341,7 @@ delay_reason_weighted_count <- flight.df %>%
 delay_reason_weighted_count
 ```
 
-Next, we calculate the count of arrive on time, cancelled and diverted.
+Next, we calculate the count of flights that arrived on time, are cancelled and diverted.
 ```{r}
 arrive_on_time_count <- length(which(flight.df$ARR_DELAY_NEW<15))
 arrive_on_time_count
@@ -403,7 +351,7 @@ diverted_count <- length(which(flight.df$DIVERTED==1))
 diverted_count
 ```
 
-Finally, we used above data to draw a pie chart. 
+After, we calculated the ratio of above data to all flights and convert them into a data frame. 
 ```{r}
 slices <- c(diverted_count,arrive_on_time_count,cancelled_count, 
             delay_reason_weighted_count[1],
@@ -415,13 +363,26 @@ lbls <- c("diverted","arrive_on_time","cancelled",
           "carrier_delay", "weather_delay" , "nas_delay",
           "security_delay", "late_aircraft")
 pct <- round(slices/sum(slices)*100,2)
-lbls <- paste(lbls, pct) # add percents to labels 
-lbls <- paste(lbls,"%",sep="") # ad % to labels 
-pie(slices,labels = lbls, col=rainbow(length(lbls)),
-    main="On-Time Arrival Performance")
+graph6.df <- as.data.frame(pct,lbls )
+graph6.df
+```
+
+Finally, we plot a bar chart by using the above data.
+```{r}
+graph6.df %>% 
+  ggplot(aes(x = reorder(lbls,pct), y =pct , fill = lbls))+
+  geom_bar(stat="identity")+
+  ggtitle("On-Time Arrival Performance") +
+  geom_text(aes(label=paste(pct,"%")), vjust=0.5, hjust=0, color="black",
+            position = position_dodge(0.8), size=3.5)+
+  xlab("Airline On-Time Statistics and Delay Causes") +
+  ylab("Percent") +
+  coord_flip()+
+  ylim(0, 100)
 ```
 
 We observe that 81.29% flights arrived on time, 2.62% flights were cancelled and 0.19% flights were diverted. About 15.9% flights are delayed and most of the delays occur due to `late aircraft` which contributes to 5.43% of all flights. It is followed by `carrier delay`, `nas delay`, `weather delay` and `security delay`.
+
 
 ## 4.7 Departure delay distribution over the day period
 We plot the departure delays calculated for each period of the day using a bar graph.
@@ -429,42 +390,44 @@ We plot the departure delays calculated for each period of the day using a bar g
 First, we make a copy of `DEP_TIME_BLK` and regroup the `DEP_TIME_PERIOD` set to MIDNIGHT, MORNING, AFTERNOON and EVENING.
 ```{r}
 flight.df$DEP_TIME_PERIOD <- flight.df$DEP_TIME_BLK
-
-levels(flight.df$DEP_TIME_PERIOD) <- c("MIDNIGHT", "MORNING", "MORNING", "MORNING", "MORNING", 
-                                       "MORNING", "MORNING", "AFTERNOON", "AFTERNOON", "AFTERNOON"
-                                       , "AFTERNOON", "AFTERNOON", "AFTERNOON", "EVENING",
-                                       "EVENING","EVENING", "EVENING", "EVENING", "EVENING")
+#Regrouping factor levels
+levels(flight.df$DEP_TIME_PERIOD) <- 
+  c("MIDNIGHT", "MORNING", "MORNING", "MORNING", "MORNING", 
+    "MORNING", "MORNING", "AFTERNOON", "AFTERNOON", "AFTERNOON", 
+    "AFTERNOON", "AFTERNOON", "AFTERNOON", "EVENING","EVENING",
+    "EVENING", "EVENING", "EVENING", "EVENING")
 ```
 
-We filter out the rows where `DEP_DELAY_NEW` is NA then select `DEP_TIME_PERIOD` and `DEP_DELAY_NEW` and mutate a new column where `DEP_DELAY_NEW` is greater than 0 or not.
+Second, we filter out the rows where `DEP_DELAY_NEW` is NA.
 
-We `groupby` the dataframe based on `DEP_TIME_PERIOD` and newly created `BOOLEAN` and unmelt based on `DEP_TIME_PERIOD` and `BOOLEAN`. 
+Third, we calculate the delay rate and average delay time in each time period by using `group_by` and `summarise`.
 
-Finally, we calculate the average delay time and merge it to the dataframe, rename and melt the dataframe for multi category bar plot.
+Fourth, we melt the dataframe for multi category bar plot.
 ```{r message=FALSE}
 flight.df %>%
   subset(!is.na(DEP_DELAY_NEW)) %>%
   select(DEP_TIME_PERIOD, DEP_DELAY_NEW) %>%
-  mutate(BOOLEAN = ifelse(DEP_DELAY_NEW >0, 1, 0)) %>%
-  group_by(DEP_TIME_PERIOD, BOOLEAN) %>%
-  tally() %>%
-  dcast(DEP_TIME_PERIOD ~ BOOLEAN) %>%
-  set_colnames(c("DEP_TIME_PERIOD", "total_flight_by_period", "delay_flight")) %>%
-  mutate(Quotient = delay_flight * 100 / total_flight_by_period) %>%
-  merge(aggregate(DEP_DELAY_NEW ~ DEP_TIME_PERIOD , 
-                  data = subset(flight.df, DEP_DELAY_NEW>0), mean)) %>%
-  select(DEP_TIME_PERIOD, Quotient, DEP_DELAY_NEW) %>%
-  set_colnames(c("Time_Period", "Percentage_delay", "Average_delay")) %>%
-  melt(id.vars = c('Time_Period')) %>%
-  ggplot(aes(x = Time_Period, y = value, fill = variable) ) +
+  group_by(DEP_TIME_PERIOD) %>%
+  summarise("Percentage_delay(%)" = 
+            (length(which(DEP_DELAY_NEW > 0))*100/length(which(DEP_DELAY_NEW >= 0))) %>% 
+              round(2),
+            "Average_delay(mins)" = mean(DEP_DELAY_NEW)%>% round())%>%
+  melt(id.vars = c('DEP_TIME_PERIOD')) -> graph7.df
+```
+
+Finally, we plot a bar chart by using above data.
+```{r}
+graph7.df %>%
+  ggplot(aes(x = DEP_TIME_PERIOD, y = value, fill = variable) ) +
   geom_bar(stat="identity", position = 'dodge') +
   ggtitle("Departure Dalay percentage and Average delay minutes by time period") +
+  geom_text(aes(label=value), vjust=-0.2, hjust=0.5, color="black",
+            position = position_dodge(0.8), size=3.5)+
   xlab("Time Period") +
   ylab("Dalay percentage and Average delay in minutes")
 ```
 
-We observe that average departure delay is high during midnight and maximum percentage of delays occur during evening.
-
+We observe that in the evening period, both of departure delay percentage and average delay time reached the highest value and were 41.6% and 14 minutes respectively. On the contrary, in the midnight period, both of these values were relatively low respectively 19.6% and 7 minutes.
 
 # 5. Network analysis
 In the next two sections we analyze the flights delay using centrality measures and graph database NEO4j.
